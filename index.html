@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Markku Weather Station (rock rock)</title>
+<meta name="color-scheme" content="light dark" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+<!-- Charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1"></script>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin></script>
+
+<style>
+:root{
+  --bg:#0a0b0e; --card:#111318; --ink:#eef2ff; --muted:#a1a1aa; --accent:#0a84ff;
+  --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --radius:18px;
+  --shadow:0 8px 24px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;
+  color:var(--ink); background:linear-gradient(180deg,var(--bg),#0c0d11 60%);
+  font-size:clamp(14px,1.1vw + 9px,16px); letter-spacing:.2px;
+}
+.wrap{max-width:min(1200px,92vw); margin-inline:auto; padding:16px 20px}
+header{position:sticky; top:0; z-index:50; backdrop-filter:saturate(180%) blur(14px);
+  background:#0a0b0ee6; border-bottom:1px solid #ffffff1a}
+.brand{display:flex; align-items:center; gap:12px}
+.flag{width:36px;height:24px;border-radius:6px; overflow:hidden; box-shadow:var(--shadow); flex:0 0 auto}
+h1{margin:0; font-size:clamp(18px,1.6vw + 12px,26px)}
+.subtitle{color:var(--muted)}
+nav{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap}
+nav button{
+  appearance:none; border:1px solid #ffffff1f; background:var(--card); color:var(--ink);
+  padding:8px 12px; border-radius:12px; cursor:pointer; box-shadow:var(--shadow);
+  font-weight:600;
+}
+nav button.active{border-color:#0a84ff80; outline:2px solid #0a84ff30}
+main{padding:18px 0}
+.grid{display:grid; gap:16px}
+@media (min-width:860px){ .grid.cols-3{grid-template-columns:repeat(3,1fr)} .grid.cols-2{grid-template-columns:repeat(2,1fr)} }
+.card{background:var(--card); border:1px solid #ffffff1a; border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
+.card h2{margin:0 0 10px; font-size:16px}
+.kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+.kpi{background:linear-gradient(180deg,#151822,#0e1118); border-radius:14px; padding:12px; border:1px solid #ffffff14; box-shadow:var(--shadow)}
+.kpi .label{font-size:12px; color:var(--muted)}
+.kpi .value{font-size:28px; font-weight:800; margin-top:4px}
+.row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+.pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; border:1px solid #ffffff2a;
+  background:var(--card); color:var(--muted); font-weight:600; font-size:12px}
+.status-dot{width:8px; height:8px; border-radius:999px; background:var(--bad)}
+.status-dot.ok{background:var(--good)} .status-dot.warn{background:var(--warn)}
+.controls{display:flex; gap:8px; flex-wrap:wrap}
+.controls input, .controls select, .controls button{padding:9px 12px; border-radius:10px; border:1px solid #ffffff24; background:var(--card); color:var(--ink)}
+.footnote{color:var(--muted); font-size:12px}
+.chart{position:relative; height:clamp(240px, 35vh, 380px)}
+.chart>canvas{position:absolute; inset:0; width:100% !important; height:100% !important; display:block}
+.hidden{display:none !important}
+.list{display:grid; gap:10px}
+.item{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:12px;
+  border:1px solid #ffffff12; background:var(--card); box-shadow:var(--shadow)}
+a{color:var(--accent); text-decoration:none}
+#map{height:clamp(240px, 34vh, 380px); border-radius:14px; box-shadow:var(--shadow)}
+.frow{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+.fcard{border:1px solid #ffffff14; border-radius:14px; padding:10px; background:#0f1219; text-align:center}
+.fday{font-weight:700; margin-bottom:4px}
+.ficon{width:42px; height:42px; margin:6px auto}
+.ftemp{font-weight:700}
+footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
+@media (max-width:640px){ .kpis{grid-template-columns:1fr} .frow{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <div class="flag" aria-hidden="true">
+          <!-- Finland flag SVG -->
+          <svg viewBox="0 0 18 12" xmlns="http://www.w3.org/2000/svg">
+            <rect width="18" height="12" fill="#fff"/>
+            <rect x="0" y="4.5" width="18" height="3" fill="#003580"/>
+            <rect x="5" y="0" width="3" height="12" fill="#003580"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Markku Weather Station <span class="subtitle">(rock rock)</span></h1>
+          <div class="subtitle">Arduino Nano 33 IoT → Google Sheets → JSON</div>
+        </div>
+        <div style="margin-left:auto" class="pill" id="liveStatus">
+          <span class="status-dot" id="statusDot"></span><span id="statusText">Disconnected</span>
+        </div>
+      </div>
+      <nav id="tabs">
+        <button data-tab="overview" class="active">Overview</button>
+        <button data-tab="live">Live</button>
+        <button data-tab="history">History</button>
+        <button data-tab="calendar">Calendar</button>
+        <button data-tab="extremes">Extremes</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- OVERVIEW -->
+    <section id="tab-overview">
+      <div class="grid cols-3">
+        <div class="card">
+          <h2>Current</h2>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="label">Temperature</div>
+              <div class="value" id="ov-temp">–</div>
+              <div class="footnote" id="ov-temp-note"></div>
+            </div>
+            <div class="kpi">
+              <div class="label">Humidity</div>
+              <div class="value" id="ov-hum">–</div>
+              <div class="footnote" id="ov-hum-note"></div>
+            </div>
+            <div class="kpi">
+              <div class="label">Last updated</div>
+              <div class="value" id="ov-time">–</div>
+              <div class="footnote"><a id="rawLink" target="_blank" rel="noopener">Raw JSON</a></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Last 24 hours</h2>
+          <div class="chart"><canvas id="chart24h" aria-label="24 hour chart"></canvas></div>
+          <div class="footnote" id="ov-24h-note">Loading…</div>
+        </div>
+
+        <div class="card">
+          <h2>Location & Forecast (API)</h2>
+          <div id="map"></div>
+          <div class="row" style="margin-top:8px">
+            <span class="pill">Vuohijärvi (local): <strong id="localClock">—</strong></span>
+            <span class="pill">Coords: <a id="mapLink" target="_blank" rel="noopener"><strong id="coordTxt"></strong></a></span>
+            <span class="pill">Sunrise: <strong id="sunrise">—</strong></span>
+            <span class="pill">Sunset: <strong id="sunset">—</strong></span>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <label class="pill"><input type="checkbox" id="toggleRadar"> Radar</label>
+            <label class="pill"><input type="checkbox" id="toggleIR"> IR Satellite</label>
+            <button id="btnWxRefresh">Refresh layers</button>
+          </div>
+          <div class="frow" id="forecast" style="margin-top:10px"></div>
+          <div class="footnote" id="forecastNote">Open‑Meteo daily forecast. Max/Min in °C. Icons from weathercode.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE -->
+    <section id="tab-live" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h2>Real‑Time</h2>
+          <div class="row">
+            <div class="kpi" style="min-width:160px">
+              <div class="label">Temperature</div>
+              <div class="value" id="live-temp">–</div>
+            </div>
+            <div class="kpi" style="min-width:160px">
+              <div class="label">Humidity</div>
+              <div class="value" id="live-hum">–</div>
+            </div>
+            <div class="kpi" style="min-width:220px">
+              <div class="label">Timestamp</div>
+              <div class="value" id="live-time">–</div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div class="controls">
+              <label class="pill">Auto‑refresh
+                <select id="refreshRate">
+                  <option value="15">15s</option>
+                  <option value="30" selected>30s</option>
+                  <option value="60">60s</option>
+                  <option value="0">Off</option>
+                </select>
+              </label>
+              <button id="btnRefresh">Refresh now</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Live Trace (last 60 minutes)</h2>
+          <div class="chart"><canvas id="chartLive"></canvas></div>
+          <div class="footnote">Auto‑scrolls with new readings.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="tab-history" class="hidden">
+      <div class="card">
+        <h2>History Explorer (custom data)</h2>
+        <div class="controls" style="margin-bottom:12px">
+          <label>Granularity
+            <select id="granularity">
+              <option value="day">Day</option>
+              <option value="month" selected>Month</option>
+              <option value="year">Year</option>
+            </select>
+          </label>
+          <label id="ctl-month" class="hidden">Month
+            <input type="month" id="monthPicker">
+          </label>
+          <label id="ctl-day" class="hidden">Day
+            <input type="date" id="dayPicker">
+          </label>
+          <label id="ctl-year" class="hidden">Year
+            <input type="number" id="yearPicker" min="2000" step="1" style="width:120px">
+          </label>
+          <button id="btnApply">Apply</button>
+        </div>
+        <div class="chart"><canvas id="chartHistory"></canvas></div>
+        <div class="list" id="summaryHistory" style="margin-top:12px"></div>
+      </div>
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card">
+          <h2>Monthly Averages (custom)</h2>
+          <div class="chart"><canvas id="chartMonthly"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>Yearly Averages (custom)</h2>
+          <div class="chart"><canvas id="chartYearly"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section id="tab-calendar" class="hidden">
+      <div class="card">
+        <h2>Pick a day (custom)</h2>
+        <div class="controls">
+          <input type="date" id="calPicker">
+          <button id="btnCalLoad">Load</button>
+        </div>
+        <div class="grid cols-2" style="margin-top:12px">
+          <div class="card">
+            <h2>Day timeline</h2>
+            <div class="chart"><canvas id="chartDay"></canvas></div>
+          </div>
+          <div class="card">
+            <h2>Stats</h2>
+            <div class="list" id="dayStats"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXTREMES -->
+    <section id="tab-extremes" class="hidden">
+      <div class="grid cols-2">
+        <div class="card">
+          <h2>Hottest / Coldest (custom)</h2>
+          <div class="list" id="extTemp"></div>
+        </div>
+        <div class="card">
+          <h2>Most‑Humid Day / Week (custom)</h2>
+          <div class="list" id="extHum"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Custom data via Google Apps Script · APIs: Open‑Meteo, OpenStreetMap, RainViewer · © <span id="yearNow"></span>
+  </footer>
+
+<script>
+/* ------------------ CONFIG ------------------ */
+const BASE_URL = 'https://script.google.com/macros/s/AKfycbxIIX-FtEhb9HixqyE9A9on8wt7_FSvkfKJ3Y5H27f9GxviqmNmEbJsT0ugh1q_-TI06g/exec';
+const TIMEZONE = 'Europe/Helsinki';
+const COORD = { lat: 61.12964862741046, lon: 26.798594036328815 };
+const AUTO_REFRESH_MS_DEFAULT = 30000;
+const MAX_ROWS_PER_CALL = 10000; // server-side guard
+const LIVE_STALE_MS = 15 * 60 * 1000; // 15 min threshold
+
+/* ---------------- JSONP (GAS) ---------------- */
+function jsonp(url){
+  return new Promise((resolve, reject)=>{
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const cleanup = () => { try{delete window[cb]}catch{}; script.remove(); };
+    window[cb] = (data)=>{ cleanup(); resolve(data); };
+    const script = document.createElement('script');
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    script.onerror = ()=>{ cleanup(); reject(new Error('Network error')); };
+    document.head.appendChild(script);
+  });
+}
+
+/* ---------------- API (windowed) ---------------- */
+const API = {
+  latest(){ return jsonp(`${BASE_URL}?mode=read&order=desc&limit=1&skip_bad=1`); },
+  since(ms){ return jsonp(`${BASE_URL}?mode=read&since=${ms}&order=asc&limit=${MAX_ROWS_PER_CALL}&skip_bad=1`); },
+  window(fromMs,toMs){ return jsonp(`${BASE_URL}?mode=read&from=${fromMs}&to=${toMs}&order=asc&limit=${MAX_ROWS_PER_CALL}&skip_bad=1`); },
+  month(y,m){ // m: 1..12
+    const d0 = luxon.DateTime.fromObject({year:y, month:m, day:1}, {zone:TIMEZONE}).startOf('month').toMillis();
+    const d1 = luxon.DateTime.fromObject({year:y, month:m, day:1}, {zone:TIMEZONE}).endOf('month').toMillis();
+    return API.window(d0,d1);
+  },
+  year(y){
+    const d0 = luxon.DateTime.fromObject({year:y}, {zone:TIMEZONE}).startOf('year').toMillis();
+    const d1 = luxon.DateTime.fromObject({year:y}, {zone:TIMEZONE}).endOf('year').toMillis();
+    return API.window(d0,d1);
+  }
+};
+
+/* --------------- Utils --------------- */
+const dt = luxon.DateTime;
+const fmtTime = (ms)=> dt.fromMillis(ms, {zone:TIMEZONE}).toLocaleString(dt.DATETIME_MED_WITH_SECONDS);
+const fmtDay  = (ms)=> dt.fromMillis(ms, {zone:TIMEZONE}).toISODate();
+const avg = (a)=> a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN;
+const by  = (arr, key)=> arr.reduce((m,x)=>{ const k=key(x); (m[k]||(m[k]=[])).push(x); return m; }, {});
+function statItem(label, value){ const d=document.createElement('div'); d.className='item'; d.innerHTML=`<span class="subtitle">${label}</span><strong>${value}</strong>`; return d; }
+function fmtTrip(a){ if(!a.length) return '–'; const mn=Math.min(...a), mx=Math.max(...a), av=avg(a); return `${mn.toFixed(2)} / ${av.toFixed(2)} / ${mx.toFixed(2)}`; }
+function decimateXY(xy, max=1200){ if(xy.length<=max) return xy; const step=Math.ceil(xy.length/max); const out=[]; for(let i=0;i<xy.length;i+=step) out.push(xy[i]); return out; }
+
+/* --------------- Charts (no scriptable recursion) --------------- */
+const Charts = {};
+function upsertLineChart(ctxId, labels, datasets, timeScale=true){
+  const el = document.getElementById(ctxId);
+  const options = {
+    responsive:true, maintainAspectRatio:false, animation:false, resizeDelay:150,
+    interaction:{ mode:'nearest', intersect:false },
+    plugins:{ legend:{ labels:{ usePointStyle:true } } },
+    scales: timeScale
+      ? { x:{ type:'time', time:{ unit:'minute' } }, y:{ beginAtZero:false } }
+      : { x:{ ticks:{ autoSkip:true, maxTicksLimit:12 } }, y:{ beginAtZero:false } }
+  };
+  if(!Charts[ctxId]){
+    Charts[ctxId] = new Chart(el, { type:'line', data:{ labels, datasets }, options });
+  } else {
+    const ch = Charts[ctxId];
+    ch.data.labels = labels;
+    ch.data.datasets = datasets;
+    ch.update('none');
+  }
+}
+
+/* --------------- Live status --------------- */
+function setStatus(isFresh){
+  const dot=document.getElementById('statusDot'); const text=document.getElementById('statusText');
+  dot.classList.toggle('ok', !!isFresh);
+  text.textContent = isFresh ? 'Live' : 'Disconnected';
+}
+
+/* --------------- Overview --------------- */
+async function loadOverview(){
+  // Latest
+  const latest = await API.latest();
+  if(!latest.data || !latest.data.length){ setStatus(false); return; }
+  const row = latest.data[0];
+  const ts  = row.epoch_ms || Date.parse(row.timestamp);
+  const fresh = (Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis()) <= LIVE_STALE_MS;
+  setStatus(fresh);
+
+  document.getElementById('ov-temp').textContent = `${(row.temp ?? NaN).toFixed(1)} °C`;
+  document.getElementById('ov-hum').textContent  = `${(row.hum ?? NaN).toFixed(1)} %`;
+  document.getElementById('ov-time').textContent = fmtTime(ts);
+  document.getElementById('ov-temp-note').textContent = fresh ? 'Within 15 minutes' : 'Older than 15 minutes';
+  document.getElementById('ov-hum-note').textContent  = fresh ? 'Within 15 minutes' : 'Older than 15 minutes';
+  document.getElementById('rawLink').href = `${BASE_URL}?mode=read&order=desc&limit=10&skip_bad=1`;
+
+  // 24h
+  const last24 = await API.since(Date.now()-24*3600e3);
+  const pts = (last24.data||[]).map(d=>({x:(d.epoch_ms||Date.parse(d.timestamp)), t:d.temp, h:d.hum}));
+  const series = decimateXY(pts);
+  upsertLineChart('chart24h',
+    series.map(p=>p.x),
+    [
+      { label:'Temp (°C)', data: series.map(p=>({x:p.x,y:p.t})), pointRadius:0, borderWidth:2, tension:.25 },
+      { label:'Humidity (%)', data: series.map(p=>({x:p.x,y:p.h})), pointRadius:0, borderWidth:2, tension:.25 }
+    ],
+    true
+  );
+  document.getElementById('ov-24h-note').textContent = `${pts.length} samples in last 24h`;
+
+  // External APIs panel
+  await loadExternal();
+}
+
+/* --------------- External APIs: Leaflet + RainViewer + Forecast --------------- */
+let map, radarLayer, irLayer, rainviewerMeta=null;
+async function loadExternal(){
+  // Clock
+  const clockEl = document.getElementById('localClock');
+  const tick = () => clockEl.textContent = dt.now().setZone(TIMEZONE).toLocaleString(dt.DATETIME_MED_WITH_SECONDS);
+  tick(); // start
+  // avoid piling intervals; keep one
+  if(!window.__clockInt){ window.__clockInt = setInterval(tick, 1000); }
+
+  // Location text + link
+  document.getElementById('coordTxt').textContent = `${COORD.lat.toFixed(5)}, ${COORD.lon.toFixed(5)}`;
+  document.getElementById('mapLink').href =
+    `https://www.openstreetmap.org/?mlat=${COORD.lat}&mlon=${COORD.lon}#map=13/${COORD.lat}/${COORD.lon}`;
+
+  // Leaflet map init once
+  if(!map){
+    map = L.map('map', { zoomControl:true, attributionControl:true }).setView([COORD.lat, COORD.lon], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    L.marker([COORD.lat, COORD.lon]).addTo(map);
+
+    // UI toggles
+    document.getElementById('toggleRadar').addEventListener('change', ()=> updateRainviewerLayers());
+    document.getElementById('toggleIR').addEventListener('change', ()=> updateRainviewerLayers());
+    document.getElementById('btnWxRefresh').addEventListener('click', ()=> fetchRainviewer(true));
+  }
+
+  // Open‑Meteo
+  try{
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${COORD.lat}&longitude=${COORD.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,sunrise,sunset&timezone=${encodeURIComponent(TIMEZONE)}`;
+    const res = await fetch(url, {cache:'no-store'}); const js = await res.json();
+    const srISO = js && js.daily && js.daily.sunrise && js.daily.sunrise[0];
+    const ssISO = js && js.daily && js.daily.sunset  && js.daily.sunset[0];
+    if(srISO) document.getElementById('sunrise').textContent = dt.fromISO(srISO).toFormat('HH:mm');
+    if(ssISO) document.getElementById('sunset').textContent  = dt.fromISO(ssISO).toFormat('HH:mm');
+
+    const box = document.getElementById('forecast'); box.innerHTML='';
+    const n = Math.min(5, (js.daily && js.daily.time) ? js.daily.time.length : 0);
+    for(let i=0;i<n;i++){
+      const dayISO = js.daily.time[i];
+      const code   = js.daily.weathercode[i];
+      const tmax   = js.daily.temperature_2m_max[i];
+      const tmin   = js.daily.temperature_2m_min[i];
+      const rh     = js.daily.relative_humidity_2m_mean[i];
+      const dayLbl = dt.fromISO(dayISO, {zone:TIMEZONE}).toFormat('ccc d');
+      const card = document.createElement('div'); card.className='fcard';
+      card.innerHTML = `
+        <div class="fday">${dayLbl}</div>
+        ${wxIcon(code)}
+        <div class="ftemp">${Math.round(tmax)}° / ${Math.round(tmin)}°C</div>
+        <div class="footnote">RH ${Math.round(rh)}%</div>`;
+      box.appendChild(card);
+    }
+    document.getElementById('forecastNote').textContent = 'Open‑Meteo daily forecast. Max/Min in °C.';
+  }catch(e){
+    document.getElementById('forecastNote').textContent = 'Forecast unavailable.';
+  }
+
+  // RainViewer (radar + IR)
+  await fetchRainviewer(false);
+}
+async function fetchRainviewer(force){
+  try{
+    if(!force && rainviewerMeta && (Date.now()-rainviewerMeta._fetchedAt)<(5*60*1000)) {
+      updateRainviewerLayers(); return;
+    }
+    const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json', {cache:'no-store'});
+    const meta = await resp.json();
+    meta._fetchedAt = Date.now();
+    rainviewerMeta = meta;
+    updateRainviewerLayers();
+  }catch(e){
+    console.warn('RainViewer meta failed', e);
+  }
+}
+function updateRainviewerLayers(){
+  if(!map || !rainviewerMeta) return;
+  // Remove existing
+  if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; }
+  if(irLayer){ map.removeLayer(irLayer); irLayer=null; }
+
+  const showRadar = document.getElementById('toggleRadar').checked;
+  const showIR    = document.getElementById('toggleIR').checked;
+
+  if(showRadar && rainviewerMeta.radar && rainviewerMeta.radar.nowcast && rainviewerMeta.radar.nowcast.length){
+    const ts = rainviewerMeta.radar.nowcast[0].time; // latest
+    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${ts}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0.7, zIndex: 400 });
+    radarLayer.addTo(map);
+  }
+  if(showIR && rainviewerMeta.satellite && rainviewerMeta.satellite.infrared && rainviewerMeta.satellite.infrared.length){
+    const ts2 = rainviewerMeta.satellite.infrared[0].time;
+    irLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/satellite/${ts2}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0.6, zIndex: 300 });
+    irLayer.addTo(map);
+  }
+}
+
+/* --------------- Live tab --------------- */
+const State = { liveTimer:null, liveSeries:[], lastSeenTs:0 };
+async function pollLive(){
+  try{
+    const res = await API.latest();
+    const d = res.data && res.data[0];
+    if(!d) throw new Error('No data');
+    const ts = d.epoch_ms || Date.parse(d.timestamp);
+    document.getElementById('live-temp').textContent = `${(d.temp ?? NaN).toFixed(2)} °C`;
+    document.getElementById('live-hum').textContent  = `${(d.hum ?? NaN).toFixed(2)} %`;
+    document.getElementById('live-time').textContent = fmtTime(ts);
+
+    const fresh = (Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis()) <= LIVE_STALE_MS;
+    setStatus(fresh);
+
+    if(ts > State.lastSeenTs){
+      State.lastSeenTs = ts;
+      const cutoff = Date.now() - 60*60*1000;
+      State.liveSeries.push({ x:ts, t:d.temp, h:d.hum });
+      State.liveSeries = State.liveSeries.filter(p=>p.x >= cutoff);
+      const xy = State.liveSeries;
+      upsertLineChart('chartLive',
+        xy.map(p=>p.x),
+        [
+          { label:'Temp (°C)', data: xy.map(p=>({x:p.x,y:p.t})), pointRadius:0, borderWidth:2, tension:.3 },
+          { label:'Humidity (%)', data: xy.map(p=>({x:p.x,y:p.h})), pointRadius:0, borderWidth:2, tension:.3 }
+        ]
+      );
+    }
+  }catch(e){ setStatus(false); }
+}
+function startLiveTimer(ms){
+  if(State.liveTimer) clearInterval(State.liveTimer);
+  if(ms>0) State.liveTimer = setInterval(()=>{ if(!document.hidden) pollLive(); }, ms);
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && document.querySelector('nav button.active')?.dataset.tab==='live') pollLive();
+});
+
+/* --------------- History --------------- */
+function showCtl(gran){
+  document.getElementById('ctl-day').classList.toggle('hidden', gran!=='day');
+  document.getElementById('ctl-month').classList.toggle('hidden', gran!=='month');
+  document.getElementById('ctl-year').classList.toggle('hidden', gran!=='year');
+}
+async function applyHistory(){
+  const gran = document.getElementById('granularity').value; showCtl(gran);
+
+  let labels=[], seriesT=[], seriesH=[], summaryEl=document.getElementById('summaryHistory'); summaryEl.innerHTML='';
+  if(gran==='day'){
+    const day = document.getElementById('dayPicker').value || dt.now().setZone(TIMEZONE).toISODate();
+    const d0 = dt.fromISO(day, {zone:TIMEZONE}).startOf('day').toMillis();
+    const d1 = dt.fromISO(day, {zone:TIMEZONE}).endOf('day').toMillis();
+    const {data=[]} = await API.window(d0,d1);
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+    labels = rows.map(r=>r.ms);
+    seriesT = rows.map(r=>({x:r.ms,y:r.temp}));
+    seriesH = rows.map(r=>({x:r.ms,y:r.hum}));
+    summaryEl.appendChild(statItem('Samples', rows.length));
+    summaryEl.appendChild(statItem('Temp (min / avg / max)', fmtTrip(rows.map(r=>r.temp))));
+    summaryEl.appendChild(statItem('Humidity (min / avg / max)', fmtTrip(rows.map(r=>r.hum))));
+    // If only a handful of points, Chart.js still shows them (no autoskip on time scale).
+    upsertLineChart('chartHistory', labels, [
+      { label:'Temp (°C)', data:seriesT, pointRadius:0, borderWidth:2, tension:.25 },
+      { label:'Humidity (%)', data:seriesH, pointRadius:0, borderWidth:2, tension:.25 }
+    ], true);
+  } else if(gran==='month'){
+    const monthIso = document.getElementById('monthPicker').value || dt.now().setZone(TIMEZONE).toFormat('yyyy-LL');
+    const d0 = dt.fromFormat(monthIso,'yyyy-LL',{zone:TIMEZONE}).startOf('month').toMillis();
+    const d1 = dt.fromFormat(monthIso,'yyyy-LL',{zone:TIMEZONE}).endOf('month').toMillis();
+    const {data=[]} = await API.window(d0,d1);
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+    const byDayMap = by(rows, r=> fmtDay(r.ms));
+    const days = Object.keys(byDayMap).sort();
+    labels = days;
+    seriesT = days.map(k=> avg(byDayMap[k].map(x=>x.temp)));
+    seriesH = days.map(k=> avg(byDayMap[k].map(x=>x.hum)));
+    summaryEl.appendChild(statItem('Days', labels.length));
+    summaryEl.appendChild(statItem('Avg Temp', isFinite(avg(seriesT))? avg(seriesT).toFixed(2)+' °C':'–'));
+    summaryEl.appendChild(statItem('Avg Humidity', isFinite(avg(seriesH))? avg(seriesH).toFixed(2)+' %':'–'));
+    upsertLineChart('chartHistory', labels, [
+      { label:'Avg Temp (°C)', data:seriesT, pointRadius:3, borderWidth:2, tension:.25 },
+      { label:'Avg Humidity (%)', data:seriesH, pointRadius:3, borderWidth:2, tension:.25 }
+    ], false);
+  } else {
+    const year = Number(document.getElementById('yearPicker').value || dt.now().setZone(TIMEZONE).year);
+    const {data=[]} = await API.year(year);
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+    const byMonth = by(rows, r=> dt.fromMillis(r.ms, {zone:TIMEZONE}).toFormat('yyyy-LL'));
+    const months = Object.keys(byMonth).sort();
+    labels = months;
+    seriesT = months.map(k=> avg(byMonth[k].map(x=>x.temp)));
+    seriesH = months.map(k=> avg(byMonth[k].map(x=>x.hum)));
+    summaryEl.appendChild(statItem('Months', labels.length));
+    summaryEl.appendChild(statItem('Avg Temp', isFinite(avg(seriesT))? avg(seriesT).toFixed(2)+' °C':'–'));
+    summaryEl.appendChild(statItem('Avg Humidity', isFinite(avg(seriesH))? avg(seriesH).toFixed(2)+' %':'–'));
+    upsertLineChart('chartHistory', labels, [
+      { label:'Avg Temp (°C)', data:seriesT, pointRadius:3, borderWidth:2, tension:.25 },
+      { label:'Avg Humidity (%)', data:seriesH, pointRadius:3, borderWidth:2, tension:.25 }
+    ], false);
+  }
+
+  // Monthly & Yearly overview from the same windowed slices (current year)
+  const now = dt.now().setZone(TIMEZONE);
+  const {data:yearData=[]} = await API.year(now.year);
+  const rowsY = yearData.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  const byM = by(rowsY, r=> dt.fromMillis(r.ms,{zone:TIMEZONE}).toFormat('yyyy-LL'));
+  const mLabels = Object.keys(byM).sort();
+  const mTemp   = mLabels.map(k=> avg(byM[k].map(x=>x.temp)));
+  const mHum    = mLabels.map(k=> avg(byM[k].map(x=>x.hum)));
+  upsertLineChart('chartMonthly', mLabels, [
+    { label:'Temp (°C)', data:mTemp, pointRadius:3, borderWidth:2, tension:.25 },
+    { label:'Humidity (%)', data:mHum, pointRadius:3, borderWidth:2, tension:.25 }
+  ], false);
+
+  const byY = by(rowsY, r=> dt.fromMillis(r.ms,{zone:TIMEZONE}).year);
+  const yLabels = Object.keys(byY).sort();
+  const yTemp   = yLabels.map(k=> avg(byY[k].map(x=>x.temp)));
+  const yHum    = yLabels.map(k=> avg(byY[k].map(x=>x.hum)));
+  upsertLineChart('chartYearly', yLabels, [
+    { label:'Temp (°C)', data:yTemp, pointRadius:3, borderWidth:2, tension:.25 },
+    { label:'Humidity (%)', data:yHum, pointRadius:3, borderWidth:2, tension:.25 }
+  ], false);
+}
+
+/* --------------- Calendar --------------- */
+async function loadDay(dateIso){
+  const d0 = dt.fromISO(dateIso, {zone:TIMEZONE}).startOf('day').toMillis();
+  const d1 = dt.fromISO(dateIso, {zone:TIMEZONE}).endOf('day').toMillis();
+  const {data=[]} = await API.window(d0,d1);
+  const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  upsertLineChart('chartDay',
+    rows.map(r=>r.ms),
+    [
+      { label:'Temp (°C)', data: rows.map(r=>({x:r.ms,y:r.temp})), pointRadius:0, borderWidth:2, tension:.25 },
+      { label:'Humidity (%)', data: rows.map(r=>({x:r.ms,y:r.hum})), pointRadius:0, borderWidth:2, tension:.25 }
+    ],
+    true
+  );
+  const stats=document.getElementById('dayStats'); stats.innerHTML='';
+  stats.appendChild(statItem('Samples', rows.length));
+  stats.appendChild(statItem('Temp (min / avg / max)', fmtTrip(rows.map(r=>r.temp))));
+  stats.appendChild(statItem('Humidity (min / avg / max)', fmtTrip(rows.map(r=>r.hum))));
+}
+
+/* --------------- Extremes --------------- */
+async function loadExtremes(){
+  // last 90 days window to keep payload reasonable
+  const {data=[]} = await API.since(Date.now()-90*24*3600e3);
+  const all = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  const byDayMap = by(all, r=> fmtDay(r.ms));
+  const dayAgg = Object.entries(byDayMap).map(([k,arr])=>({
+    day:k,
+    tAvg:avg(arr.map(x=>x.temp)),
+    tMax:Math.max.apply(null, arr.map(x=>x.temp)),
+    tMin:Math.min.apply(null, arr.map(x=>x.temp)),
+    hAvg:avg(arr.map(x=>x.hum))
+  }));
+  if(!dayAgg.length){ document.getElementById('extTemp').innerHTML='No data'; document.getElementById('extHum').innerHTML='No data'; return; }
+
+  const hottest = dayAgg.reduce((a,b)=> b.tMax > (a?tMax(a): -Infinity) ? b : a);
+  function tMax(x){ return x.tMax; }
+  const coldest = dayAgg.reduce((a,b)=> b.tMin < (a?tMin(a):  Infinity) ? b : a);
+  function tMin(x){ return x.tMin; }
+  const mostHumidDay = dayAgg.reduce((a,b)=> b.hAvg > (a?hAvg(a): -Infinity) ? b : a);
+  function hAvg(x){ return x.hAvg; }
+
+  const extTemp=document.getElementById('extTemp'); extTemp.innerHTML='';
+  extTemp.appendChild(statItem('Hottest day (max)', `${hottest.day} · ${hottest.tMax.toFixed(2)} °C`));
+  extTemp.appendChild(statItem('Coldest day (min)', `${coldest.day} · ${coldest.tMin.toFixed(2)} °C`));
+  extTemp.appendChild(statItem('Warmest average', `${(dayAgg.reduce((a,b)=> b.tAvg>(a?a.tAvg:-Infinity)?b:a)).day} · ${Math.max.apply(null, dayAgg.map(d=>d.tAvg)).toFixed(2)} °C`));
+
+  // Weekly humidity
+  const byWeek = by(all, r=> {
+    const d = dt.fromMillis(r.ms, {zone:TIMEZONE});
+    return `${d.weekYear}-W${String(d.weekNumber).padStart(2,'0')}`;
+  });
+  const weekAgg = Object.entries(byWeek).map(([w,arr])=> ({ week:w, hAvg:avg(arr.map(x=>x.hum)) }));
+  const mostHumidWeek = weekAgg.reduce((a,b)=> b.hAvg > (a?a.hAvg:-Infinity) ? b : a);
+  const extHum=document.getElementById('extHum'); extHum.innerHTML='';
+  extHum.appendChild(statItem('Most‑humid day (avg)', `${mostHumidDay.day} · ${mostHumidDay.hAvg.toFixed(2)} %`));
+  extHum.appendChild(statItem('Most‑humid week (avg)', `${mostHumidWeek.week} · ${mostHumidWeek.hAvg.toFixed(2)} %`));
+}
+
+/* --------------- Weather icons (Open‑Meteo weathercode) --------------- */
+function wxIcon(code){
+  // Minimal set of icons (SVG) based on WMO weather codes
+  const sun = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" stroke-width="2"/></svg>';
+  const cloud = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 18h9a4 4 0 0 0 0-8 6 6 0 0 0-11.31 2" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
+  const rain = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 17h9a4 4 0 0 0 0-8 6 6 0 0 0-11.31 2" stroke="currentColor" stroke-width="2"/><path d="M8 20l-1 2M12 20l-1 2M16 20l-1 2" stroke="currentColor" stroke-width="2"/></svg>';
+  const storm = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 16h9a4 4 0 0 0 0-8 6 6 0 0 0-11.31 2" stroke="currentColor" stroke-width="2"/><path d="M13 11l-2 3h3l-2 3" stroke="currentColor" stroke-width="2"/></svg>';
+  const snow = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2v20M4 6l16 12M20 6L4 18" stroke="currentColor" stroke-width="2"/></svg>';
+  const fog  = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12h18M4 16h16M6 20h12M5 8h14" stroke="currentColor" stroke-width="2"/></svg>';
+
+  const sunny = [0], mainlyClear=[1], partlyCloudy=[2], overcast=[3];
+  const foggy=[45,48];
+  const drizzle=[51,53,55,56,57];
+  const rainCodes=[61,63,65,66,67,80,81,82];
+  const snowCodes=[71,73,75,77,85,86];
+  const thunder=[95,96,99];
+
+  if (sunny.includes(code)) return sun;
+  if (mainlyClear.includes(code)) return sun;
+  if (partlyCloudy.includes(code)) return cloud + sun;
+  if (overcast.includes(code)) return cloud;
+  if (foggy.includes(code)) return fog;
+  if (drizzle.includes(code)) return rain;
+  if (rainCodes.includes(code)) return rain;
+  if (snowCodes.includes(code)) return snow;
+  if (thunder.includes(code)) return storm;
+  return cloud;
+}
+
+/* --------------- Tabs & Init --------------- */
+function switchTab(tab){
+  document.querySelectorAll('nav button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('main > section').forEach(s=> s.classList.toggle('hidden', s.id !== `tab-${tab}`));
+}
+
+(async function init(){
+  document.getElementById('yearNow').textContent = new Date().getFullYear();
+
+  // Tabs
+  document.getElementById('tabs').addEventListener('click', (e)=>{
+    if(e.target.tagName!=='BUTTON') return;
+    const tab = e.target.dataset.tab;
+    switchTab(tab);
+    if(tab==='overview') loadOverview();
+    if(tab==='live'){ pollLive(); startLiveTimer(AUTO_REFRESH_MS_DEFAULT); } else startLiveTimer(0);
+    if(tab==='history') applyHistory();
+    if(tab==='calendar'){ const iso=dt.now().setZone(TIMEZONE).toISODate(); document.getElementById('calPicker').value=iso; loadDay(iso); }
+    if(tab==='extremes') loadExtremes();
+  });
+
+  // Controls
+  document.getElementById('btnRefresh').onclick = pollLive;
+  document.getElementById('refreshRate').onchange = (e)=> startLiveTimer(Number(e.target.value)>0 ? Number(e.target.value)*1000 : 0);
+  document.getElementById('granularity').onchange = ()=>{
+    const g = document.getElementById('granularity').value;
+    if(g==='day')   document.getElementById('dayPicker').value   = dt.now().setZone(TIMEZONE).toISODate();
+    if(g==='month') document.getElementById('monthPicker').value = dt.now().setZone(TIMEZONE).toFormat('yyyy-LL');
+    if(g==='year')  document.getElementById('yearPicker').value  = dt.now().setZone(TIMEZONE).year;
+    showCtl(g);
+  };
+  document.getElementById('btnApply').onclick = applyHistory;
+  document.getElementById('btnCalLoad').onclick = ()=>{ const d=document.getElementById('calPicker').value; if(d) loadDay(d); };
+
+  // Defaults for history controls
+  document.getElementById('granularity').dispatchEvent(new Event('change'));
+
+  // Initial load
+  await loadOverview();
+  switchTab('overview');
+})();
+</script>
+</body>
+</html>
