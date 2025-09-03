@@ -78,6 +78,12 @@ a{color:var(--accent); text-decoration:none}
 .ftemp{font-weight:700}
 footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
 @media (max-width:640px){ .kpis{grid-template-columns:1fr} .frow{grid-template-columns:repeat(2,1fr)} }
+
+/* Added */
+.subscribe .footnote{min-width:200px}
+.pill input[type="range"]{accent-color:var(--accent)}
+.pill button{padding:6px 10px; border-radius:8px; border:1px solid #ffffff24; background:var(--card); color:var(--ink); cursor:pointer}
+.leaflet-control-layers{font-size:12px}
 </style>
 </head>
 <body>
@@ -96,7 +102,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
           <h1>Markku Weather Station <span class="subtitle">(rock rock)</span></h1>
           <div class="subtitle">Markun yksityinen sääasema</div>
         </div>
-        <div style="margin-left:auto" class="pill" id="liveStatus">
+        <div style="margin-left:auto" class="pill" id="liveStatus" aria-live="polite">
           <span class="status-dot" id="statusDot"></span><span id="statusText">Disconnected</span>
         </div>
       </div>
@@ -136,7 +142,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         </div>
 
         <div class="card">
-          <h2>Last 24 hours</h2>
+          <h2>Last 24 hours <button id="btnCsv24h" class="pill">Download CSV</button></h2>
           <div class="chart"><canvas id="chart24h" aria-label="24 hour chart"></canvas></div>
           <div class="footnote" id="ov-24h-note">Loading…</div>
         </div>
@@ -150,10 +156,37 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
             <span class="pill">Sunrise: <strong id="sunrise">—</strong></span>
             <span class="pill">Sunset: <strong id="sunset">—</strong></span>
           </div>
-          <div class="row" style="margin-top:8px">
-            <label class="pill"><input type="checkbox" id="toggleRadar"> Radar</label>
-            <label class="pill"><input type="checkbox" id="toggleIR"> IR Satellite</label>
-            <button id="btnWxRefresh">Refresh layers</button>
+          <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap">
+            <label class="pill"><input type="checkbox" id="toggleRadar" checked> Radar</label>
+            <label class="pill"><input type="checkbox" id="toggleIR"> IR</label>
+            <button id="btnWxRefresh">Refresh</button>
+
+            <span class="pill" style="gap:10px">
+              <button id="btnPlay" aria-label="Play/Pause">▶︎</button>
+              <input type="range" id="frameScrub" min="0" max="0" value="0" style="width:180px" aria-label="Frame scrubber">
+              <select id="animSpeed" title="Speed" aria-label="Animation speed">
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="2">2×</option>
+                <option value="4">4×</option>
+              </select>
+            </span>
+
+            <span class="pill" style="gap:10px">
+              Blend
+              <input type="range" id="blend" min="0" max="100" value="50" style="width:120px" title="Radar↔IR opacity">
+            </span>
+
+            <span class="pill">
+              Base
+              <select id="basemap" aria-label="Basemap">
+                <option value="osm" selected>OSM</option>
+                <option value="terrain">Terrain</option>
+                <option value="sat">Satellite</option>
+              </select>
+            </span>
+
+            <label class="pill"><input type="checkbox" id="toggleWind" disabled> Wind (coming)</label>
           </div>
           <div class="frow" id="forecast" style="margin-top:10px"></div>
           <div class="footnote" id="forecastNote">Open‑Meteo daily forecast. Max/Min in °C. Icons from weathercode.</div>
@@ -196,8 +229,8 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         </div>
         <div class="card">
           <h2>Live Trace (last 60 minutes)</h2>
-          <div class="chart"><canvas id="chartLive"></canvas></div>
-          <div class="footnote">Auto‑scrolls with new readings.</div>
+          <div class="chart"><canvas id="chartLive" aria-label="Live trace"></canvas></div>
+          <div class="footnote" id="liveNote">Auto‑scrolls with new readings.</div>
         </div>
       </div>
     </section>
@@ -205,7 +238,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
     <!-- HISTORY -->
     <section id="tab-history" class="hidden">
       <div class="card">
-        <h2>History Explorer (custom data)</h2>
+        <h2>History Explorer (custom data) <button id="btnCsvHistory" class="pill">Download CSV</button></h2>
         <div class="controls" style="margin-bottom:12px">
           <label>Granularity
             <select id="granularity">
@@ -225,17 +258,17 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
           </label>
           <button id="btnApply">Apply</button>
         </div>
-        <div class="chart"><canvas id="chartHistory"></canvas></div>
+        <div class="chart"><canvas id="chartHistory" aria-label="History chart"></canvas></div>
         <div class="list" id="summaryHistory" style="margin-top:12px"></div>
       </div>
       <div class="grid cols-2" style="margin-top:16px">
         <div class="card">
-          <h2>Monthly Averages (custom)</h2>
-          <div class="chart"><canvas id="chartMonthly"></canvas></div>
+          <h2>Monthly Averages (current year)</h2>
+          <div class="chart"><canvas id="chartMonthly" aria-label="Monthly averages"></canvas></div>
         </div>
         <div class="card">
-          <h2>Yearly Averages (custom)</h2>
-          <div class="chart"><canvas id="chartYearly"></canvas></div>
+          <h2>Yearly Averages (current year)</h2>
+          <div class="chart"><canvas id="chartYearly" aria-label="Yearly averages"></canvas></div>
         </div>
       </div>
     </section>
@@ -251,7 +284,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         <div class="grid cols-2" style="margin-top:12px">
           <div class="card">
             <h2>Day timeline</h2>
-            <div class="chart"><canvas id="chartDay"></canvas></div>
+            <div class="chart"><canvas id="chartDay" aria-label="Day timeline"></canvas></div>
           </div>
           <div class="card">
             <h2>Stats</h2>
@@ -277,7 +310,18 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
   </main>
 
   <footer>
-    Designed by Ricardo Arbiza, 2025 © <span id="yearNow"></span>
+    <!-- Subscribe -->
+    <div class="row" style="justify-content:center; gap:10px; margin-bottom:10px">
+      <form id="alertSub" class="subscribe" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <input type="email" id="subEmail" placeholder="Email for alerts" required
+               style="padding:9px 12px; border-radius:10px; border:1px solid #ffffff24; background:var(--card); color:var(--ink)">
+        <input type="text" name="hp" tabindex="-1" autocomplete="off" style="display:none">
+        <button type="submit" style="padding:9px 12px; border-radius:10px; border:1px solid #ffffff24; background:var(--card); color:var(--ink)">Subscribe</button>
+        <a id="manageInfo" href="#" style="color:var(--accent)">Manage / Unsubscribe</a>
+        <span id="subMsg" class="footnote"></span>
+      </form>
+    </div>
+    Designed by Ricardo Arbiza © <span id="yearNow"></span>
   </footer>
 
 <script>
@@ -286,8 +330,14 @@ const BASE_URL = 'https://script.google.com/macros/s/AKfycbxIIX-FtEhb9HixqyE9A9o
 const TIMEZONE = 'Europe/Helsinki';
 const COORD = { lat: 61.12964862741046, lon: 26.798594036328815 };
 const AUTO_REFRESH_MS_DEFAULT = 30000;
-const MAX_ROWS_PER_CALL = 10000; // server-side guard
-const LIVE_STALE_MS = 15 * 60 * 1000; // 15 min threshold
+const MAX_ROWS_PER_CALL = 10000;
+const LIVE_STALE_MS = 15 * 60 * 1000;
+
+// Alerts subscribe endpoint (Apps Script “base_url”)
+const SUBSCRIBE_URL = 'https://script.google.com/macros/s/AKfycbxedVC0Voc425k8HePuceeEVz9gj-JOO8lyybccNGIjb5Cmh_8LOIJclKwv8iHR5OBg/exec';
+
+// Animation speeds (ms per frame)
+const RV_PLAY_SPEEDS = { '0.5': 800, '1': 400, '2': 200, '4': 100 };
 
 /* ---------------- JSONP (GAS) ---------------- */
 function jsonp(url){
@@ -296,7 +346,7 @@ function jsonp(url){
     const cleanup = () => { try{delete window[cb]}catch{}; script.remove(); };
     window[cb] = (data)=>{ cleanup(); resolve(data); };
     const script = document.createElement('script');
-    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb + '&ts=' + Date.now();
     script.onerror = ()=>{ cleanup(); reject(new Error('Network error')); };
     document.head.appendChild(script);
   });
@@ -306,8 +356,8 @@ function jsonp(url){
 const API = {
   latest(){ return jsonp(`${BASE_URL}?mode=read&order=desc&limit=1&skip_bad=1`); },
   since(ms){ return jsonp(`${BASE_URL}?mode=read&since=${ms}&order=asc&limit=${MAX_ROWS_PER_CALL}&skip_bad=1`); },
-  window(fromMs,toMs){ return jsonp(`${BASE_URL}?mode=read&from=${fromMs}&to=${toMs}&order=asc&limit=${MAX_ROWS_PER_CALL}&skip_bad=1`); },
-  month(y,m){ // m: 1..12
+  window(fromMs,toMs){ return jsonp(`${BASE_URL}?mode=read&from=${fromMs}&to=${toMs+1}&order=asc&limit=${MAX_ROWS_PER_CALL}&skip_bad=1`); },
+  month(y,m){
     const d0 = luxon.DateTime.fromObject({year:y, month:m, day:1}, {zone:TIMEZONE}).startOf('month').toMillis();
     const d1 = luxon.DateTime.fromObject({year:y, month:m, day:1}, {zone:TIMEZONE}).endOf('month').toMillis();
     return API.window(d0,d1);
@@ -329,14 +379,39 @@ function statItem(label, value){ const d=document.createElement('div'); d.classN
 function fmtTrip(a){ if(!a.length) return '–'; const mn=Math.min(...a), mx=Math.max(...a), av=avg(a); return `${mn.toFixed(2)} / ${av.toFixed(2)} / ${mx.toFixed(2)}`; }
 function decimateXY(xy, max=1200){ if(xy.length<=max) return xy; const step=Math.ceil(xy.length/max); const out=[]; for(let i=0;i<xy.length;i+=step) out.push(xy[i]); return out; }
 
-/* --------------- Charts (no scriptable recursion) --------------- */
+/* --------------- Cache (localStorage + TTL) --------------- */
+const Cache = {
+  get(k){
+    try{ const raw = localStorage.getItem(k); if(!raw) return null;
+      const o = JSON.parse(raw); if(o.exp && Date.now()>o.exp) { localStorage.removeItem(k); return null; }
+      return o.val;
+    }catch{ return null; }
+  },
+  set(k,val,ttlMs){ try{ localStorage.setItem(k, JSON.stringify({ val, exp: ttlMs?Date.now()+ttlMs:0 })); }catch{} }
+};
+
+/* --------------- Hampel outlier flags --------------- */
+function hampelFlags(arr, window=7, k=3){
+  const n = arr.length; const flags = new Array(n).fill(false);
+  const med = (a)=>{ const b=a.filter(Number.isFinite).slice().sort((x,y)=>x-y); if(!b.length) return NaN; const m=Math.floor(b.length/2); return b.length%2? b[m] : (b[m-1]+b[m])/2; };
+  for(let i=0;i<n;i++){
+    const s = Math.max(0, i-Math.floor(window/2)), e = Math.min(n, i+Math.ceil(window/2));
+    const slice = arr.slice(s,e).filter(Number.isFinite); if(slice.length<3) continue;
+    const m = med(slice); const abs = slice.map(x=>Math.abs(x-m)); const mad = med(abs) || 0;
+    if(mad===0) continue;
+    const thr = k*1.4826*mad; if (Number.isFinite(arr[i]) && Math.abs(arr[i]-m) > thr) flags[i]=true;
+  }
+  return flags;
+}
+
+/* --------------- Charts --------------- */
 const Charts = {};
 function upsertLineChart(ctxId, labels, datasets, timeScale=true){
   const el = document.getElementById(ctxId);
   const options = {
     responsive:true, maintainAspectRatio:false, animation:false, resizeDelay:150,
     interaction:{ mode:'nearest', intersect:false },
-    plugins:{ legend:{ labels:{ usePointStyle:true } } },
+    plugins:{ legend:{ labels:{ usePointStyle:true } }, decimation:{ enabled:true, algorithm:'lttb', samples:600 } },
     scales: timeScale
       ? { x:{ type:'time', time:{ unit:'minute' } }, y:{ beginAtZero:false } }
       : { x:{ ticks:{ autoSkip:true, maxTicksLimit:12 } }, y:{ beginAtZero:false } }
@@ -352,33 +427,49 @@ function upsertLineChart(ctxId, labels, datasets, timeScale=true){
 }
 
 /* --------------- Live status --------------- */
-function setStatus(isFresh){
+function setStatusByAge(ageMs){
   const dot=document.getElementById('statusDot'); const text=document.getElementById('statusText');
-  dot.classList.toggle('ok', !!isFresh);
-  text.textContent = isFresh ? 'Live' : 'Disconnected';
+  dot.classList.remove('ok','warn');
+  if (ageMs <= 5*60e3){ dot.classList.add('ok'); text.textContent='Live'; }
+  else if (ageMs <= LIVE_STALE_MS){ dot.classList.add('warn'); text.textContent='Stale'; }
+  else { text.textContent='Disconnected'; }
 }
 
 /* --------------- Overview --------------- */
 async function loadOverview(){
-  // Latest
+  const cached = Cache.get('latest');
+  if(cached){ hydrateOverview(cached, true); }
   const latest = await API.latest();
-  if(!latest.data || !latest.data.length){ setStatus(false); return; }
+  if(latest?.data?.length){ Cache.set('latest', latest, 60e3); hydrateOverview(latest, false); }
+
+  const cache24 = Cache.get('last24h');
+  if(cache24){ hydrate24h(cache24, true); }
+  const last24 = await API.since(Date.now()-24*3600e3);
+  Cache.set('last24h', last24, 60e3);
+  hydrate24h(last24, false);
+
+  await loadExternal();
+}
+function hydrateOverview(latest){
   const row = latest.data[0];
   const ts  = row.epoch_ms || Date.parse(row.timestamp);
-  const fresh = (Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis()) <= LIVE_STALE_MS;
-  setStatus(fresh);
-
-  document.getElementById('ov-temp').textContent = `${(row.temp ?? NaN).toFixed(1)} °C`;
-  document.getElementById('ov-hum').textContent  = `${(row.hum ?? NaN).toFixed(1)} %`;
+  const age = Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis();
+  setStatusByAge(age);
+  const fmt1 = v => Number.isFinite(v) ? v.toFixed(1) : '—';
+  document.getElementById('ov-temp').textContent = `${fmt1(row.temp ?? NaN)} °C`;
+  document.getElementById('ov-hum').textContent  = `${fmt1(row.hum ?? NaN)} %`;
   document.getElementById('ov-time').textContent = fmtTime(ts);
-  document.getElementById('ov-temp-note').textContent = fresh ? 'Within 15 minutes' : 'Older than 15 minutes';
-  document.getElementById('ov-hum-note').textContent  = fresh ? 'Within 15 minutes' : 'Older than 15 minutes';
+  const cadenceNote = age <= 5*60e3 ? '≤ 5 min' : age <= LIVE_STALE_MS ? '5–15 min' : '> 15 min';
+  document.getElementById('ov-temp-note').textContent = `Age ${Math.round(age/60000)} min (${cadenceNote})`;
+  document.getElementById('ov-hum-note').textContent  = `Age ${Math.round(age/60000)} min (${cadenceNote})`;
   document.getElementById('rawLink').href = `${BASE_URL}?mode=read&order=desc&limit=10&skip_bad=1`;
-
-  // 24h
-  const last24 = await API.since(Date.now()-24*3600e3);
-  const pts = (last24.data||[]).map(d=>({x:(d.epoch_ms||Date.parse(d.timestamp)), t:d.temp, h:d.hum}));
-  const series = decimateXY(pts);
+}
+function hydrate24h(last24){
+  const pts = (last24.data||[]).map(d=>({x:(d.epoch_ms||Date.parse(d.timestamp)), t:+d.temp, h:+d.hum}));
+  const flagsT = hampelFlags(pts.map(p=>p.t));
+  const flagsH = hampelFlags(pts.map(p=>p.h));
+  const clean = pts.filter((p,i)=> !(flagsT[i] || flagsH[i]));
+  const series = decimateXY(clean);
   upsertLineChart('chart24h',
     series.map(p=>p.x),
     [
@@ -387,144 +478,224 @@ async function loadOverview(){
     ],
     true
   );
-  document.getElementById('ov-24h-note').textContent = `${pts.length} samples in last 24h`;
-
-  // External APIs panel
-  await loadExternal();
+  const dropped = pts.length - clean.length;
+  document.getElementById('ov-24h-note').textContent = `${pts.length} samples in last 24h${dropped?`, ${dropped} outliers masked`:''}`;
 }
 
 /* --------------- External APIs: Leaflet + RainViewer + Forecast --------------- */
-let map, radarLayer, irLayer, rainviewerMeta=null;
+let map, baseLayers, rainviewerMeta=null;
+let radarFrames=[], irFrames=[], frameIdx=0, playTimer=null;
+let radarLayer, irLayer;
+
 async function loadExternal(){
   // Clock
   const clockEl = document.getElementById('localClock');
   const tick = () => clockEl.textContent = dt.now().setZone(TIMEZONE).toLocaleString(dt.DATETIME_MED_WITH_SECONDS);
-  tick(); // start
-  // avoid piling intervals; keep one
-  if(!window.__clockInt){ window.__clockInt = setInterval(tick, 1000); }
+  tick(); if(!window.__clockInt){ window.__clockInt = setInterval(tick, 1000); }
 
   // Location text + link
   document.getElementById('coordTxt').textContent = `${COORD.lat.toFixed(5)}, ${COORD.lon.toFixed(5)}`;
   document.getElementById('mapLink').href =
     `https://www.openstreetmap.org/?mlat=${COORD.lat}&mlon=${COORD.lon}#map=13/${COORD.lat}/${COORD.lon}`;
 
-  // Leaflet map init once
+  // Map init once
   if(!map){
-    map = L.map('map', { zoomControl:true, attributionControl:true }).setView([COORD.lat, COORD.lon], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    baseLayers = {
+      osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }),
+      terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '&copy; OpenTopoMap' }),
+      sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri' })
+    };
+    map = L.map('map', { zoomControl:true, attributionControl:true, layers:[baseLayers.osm] })
+            .setView([COORD.lat, COORD.lon], 11);
     L.marker([COORD.lat, COORD.lon]).addTo(map);
+    L.control.layers(baseLayers, {}, { collapsed:true }).addTo(map);
 
-    // UI toggles
-    document.getElementById('toggleRadar').addEventListener('change', ()=> updateRainviewerLayers());
-    document.getElementById('toggleIR').addEventListener('change', ()=> updateRainviewerLayers());
+    // Basemap selector
+    document.getElementById('basemap').addEventListener('change', (e)=>{
+      const v=e.target.value; Object.values(baseLayers).forEach(l=> map.removeLayer(l)); baseLayers[v].addTo(map);
+    });
+
+    // Persistent overlay layers
+    radarLayer = L.tileLayer('', { opacity: 0.7, zIndex: 400, crossOrigin:'anonymous' });
+    irLayer    = L.tileLayer('', { opacity: 0.6, zIndex: 300, crossOrigin:'anonymous' });
+
+    // UI events
+    document.getElementById('toggleRadar').addEventListener('change', ()=> toggleOverlay('radar'));
+    document.getElementById('toggleIR').addEventListener('change', ()=> toggleOverlay('ir'));
     document.getElementById('btnWxRefresh').addEventListener('click', ()=> fetchRainviewer(true));
+    document.getElementById('btnPlay').addEventListener('click', togglePlay);
+    document.getElementById('frameScrub').addEventListener('input', (e)=> setFrame(+e.target.value));
+    document.getElementById('animSpeed').addEventListener('change', ()=> { if(playTimer) restartPlayTimer(); });
+    document.getElementById('blend').addEventListener('input', updateBlend);
   }
 
-  // Open‑Meteo
+  // Open‑Meteo forecast
   try{
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${COORD.lat}&longitude=${COORD.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,sunrise,sunset&timezone=${encodeURIComponent(TIMEZONE)}`;
     const res = await fetch(url, {cache:'no-store'}); const js = await res.json();
-    const srISO = js && js.daily && js.daily.sunrise && js.daily.sunrise[0];
-    const ssISO = js && js.daily && js.daily.sunset  && js.daily.sunset[0];
+    const srISO = js?.daily?.sunrise?.[0]; const ssISO = js?.daily?.sunset?.[0];
     if(srISO) document.getElementById('sunrise').textContent = dt.fromISO(srISO).toFormat('HH:mm');
     if(ssISO) document.getElementById('sunset').textContent  = dt.fromISO(ssISO).toFormat('HH:mm');
 
     const box = document.getElementById('forecast'); box.innerHTML='';
-    const n = Math.min(5, (js.daily && js.daily.time) ? js.daily.time.length : 0);
+    const n = Math.min(5, js?.daily?.time?.length || 0);
     for(let i=0;i<n;i++){
-      const dayISO = js.daily.time[i];
-      const code   = js.daily.weathercode[i];
-      const tmax   = js.daily.temperature_2m_max[i];
-      const tmin   = js.daily.temperature_2m_min[i];
-      const rh     = js.daily.relative_humidity_2m_mean[i];
+      const dayISO = js.daily.time[i]; const code=js.daily.weathercode[i];
+      const tmax=js.daily.temperature_2m_max[i]; const tmin=js.daily.temperature_2m_min[i];
+      const rh=js.daily.relative_humidity_2m_mean[i];
       const dayLbl = dt.fromISO(dayISO, {zone:TIMEZONE}).toFormat('ccc d');
       const card = document.createElement('div'); card.className='fcard';
-      card.innerHTML = `
-        <div class="fday">${dayLbl}</div>
-        ${wxIcon(code)}
-        <div class="ftemp">${Math.round(tmax)}° / ${Math.round(tmin)}°C</div>
-        <div class="footnote">RH ${Math.round(rh)}%</div>`;
+      card.innerHTML = `<div class="fday">${dayLbl}</div>${wxIcon(code)}<div class="ftemp">${Math.round(tmax)}° / ${Math.round(tmin)}°C</div><div class="footnote">RH ${Math.round(rh)}%</div>`;
       box.appendChild(card);
     }
     document.getElementById('forecastNote').textContent = 'Open‑Meteo daily forecast. Max/Min in °C.';
-  }catch(e){
-    document.getElementById('forecastNote').textContent = 'Forecast unavailable.';
-  }
+  }catch{ document.getElementById('forecastNote').textContent = 'Forecast unavailable.'; }
 
-  // RainViewer (radar + IR)
+  // RainViewer meta & frames
   await fetchRainviewer(false);
 }
+
 async function fetchRainviewer(force){
   try{
-    if(!force && rainviewerMeta && (Date.now()-rainviewerMeta._fetchedAt)<(5*60*1000)) {
-      updateRainviewerLayers(); return;
-    }
+    if(!force && rainviewerMeta && (Date.now()-rainviewerMeta._fetchedAt)<(5*60*1000)) { applyRainviewerMeta(); return; }
     const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json', {cache:'no-store'});
     const meta = await resp.json();
-    meta._fetchedAt = Date.now();
-    rainviewerMeta = meta;
-    updateRainviewerLayers();
-  }catch(e){
-    console.warn('RainViewer meta failed', e);
+    meta._fetchedAt = Date.now(); rainviewerMeta = meta;
+    applyRainviewerMeta();
+  }catch(e){ console.warn('RainViewer meta failed', e); }
+}
+
+function applyRainviewerMeta(){
+  radarFrames = (rainviewerMeta?.radar?.nowcast || []).map(f=>f.time);
+  irFrames    = (rainviewerMeta?.satellite?.infrared || []).map(f=>f.time);
+
+  const maxFrames = Math.max(radarFrames.length, irFrames.length, 1);
+  const scrub = document.getElementById('frameScrub');
+  scrub.max = Math.max(0, maxFrames-1);
+  frameIdx = Math.max(0, maxFrames-1); // latest by default
+
+  setFrame(frameIdx);
+  toggleOverlay('radar');
+  toggleOverlay('ir');
+}
+
+function frameUrl(kind, idx){
+  const ts = (kind==='radar' ? radarFrames[idx] : irFrames[idx]);
+  if(!ts) return '';
+  return kind==='radar'
+    ? `https://tilecache.rainviewer.com/v2/radar/${ts}/256/{z}/{x}/{y}/2/1_1.png`
+    : `https://tilecache.rainviewer.com/v2/satellite/${ts}/256/{z}/{x}/{y}/2/1_1.png`;
+}
+
+function toggleOverlay(kind){
+  const show = document.getElementById(kind==='radar' ? 'toggleRadar':'toggleIR').checked;
+  const url  = frameUrl(kind, frameIdx);
+  if(kind==='radar'){
+    if(show){ radarLayer.setUrl(url); if(!map.hasLayer(radarLayer)) radarLayer.addTo(map); }
+    else if(map.hasLayer(radarLayer)) map.removeLayer(radarLayer);
+  }else{
+    if(show){ irLayer.setUrl(url); if(!map.hasLayer(irLayer)) irLayer.addTo(map); }
+    else if(map.hasLayer(irLayer)) map.removeLayer(irLayer);
+  }
+  updateBlend();
+}
+
+function updateBlend(){
+  const blend = Number(document.getElementById('blend').value);
+  const rOn = map?.hasLayer(radarLayer), iOn = map?.hasLayer(irLayer);
+  if(rOn && iOn){
+    radarLayer.setOpacity((100-blend)/100*0.9);
+    irLayer.setOpacity(blend/100*0.9);
+  }else if(rOn){
+    radarLayer.setOpacity(0.8);
+  }else if(iOn){
+    irLayer.setOpacity(0.8);
   }
 }
-function updateRainviewerLayers(){
-  if(!map || !rainviewerMeta) return;
-  // Remove existing
-  if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; }
-  if(irLayer){ map.removeLayer(irLayer); irLayer=null; }
 
-  const showRadar = document.getElementById('toggleRadar').checked;
-  const showIR    = document.getElementById('toggleIR').checked;
+function setFrame(i){
+  frameIdx = i;
+  document.getElementById('frameScrub').value = String(i);
+  if(map?.hasLayer(radarLayer)){ const u = frameUrl('radar', i); if(u) radarLayer.setUrl(u); }
+  if(map?.hasLayer(irLayer)){ const u = frameUrl('ir', i); if(u) irLayer.setUrl(u); }
+  prefetchNeighbors(i);
+}
 
-  if(showRadar && rainviewerMeta.radar && rainviewerMeta.radar.nowcast && rainviewerMeta.radar.nowcast.length){
-    const ts = rainviewerMeta.radar.nowcast[0].time; // latest
-    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${ts}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0.7, zIndex: 400 });
-    radarLayer.addTo(map);
-  }
-  if(showIR && rainviewerMeta.satellite && rainviewerMeta.satellite.infrared && rainviewerMeta.satellite.infrared.length){
-    const ts2 = rainviewerMeta.satellite.infrared[0].time;
-    irLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/satellite/${ts2}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0.6, zIndex: 300 });
-    irLayer.addTo(map);
-  }
+function nextFrame(){
+  const max = Number(document.getElementById('frameScrub').max);
+  setFrame(frameIdx >= max ? 0 : frameIdx+1);
+}
+
+function restartPlayTimer(){
+  if(playTimer){ clearInterval(playTimer); }
+  const speed = RV_PLAY_SPEEDS[document.getElementById('animSpeed').value] || 400;
+  playTimer = setInterval(nextFrame, speed);
+}
+
+function togglePlay(){
+  const btn = document.getElementById('btnPlay');
+  if(playTimer){ clearInterval(playTimer); playTimer=null; btn.textContent='▶︎'; return; }
+  restartPlayTimer(); btn.textContent='⏸';
+}
+
+// Warm caches without spamming (single sample tile per neighbor frame)
+function prefetchNeighbors(i){
+  const samples = [i-2,i-1,i+1,i+2];
+  const warm = (kind, idx) => {
+    const u = frameUrl(kind, idx); if(!u) return;
+    const sample = u.replace('{z}','7').replace('{x}','67').replace('{y}','35');
+    const img = new Image(); img.crossOrigin='anonymous'; img.src = sample;
+  };
+  samples.forEach(idx => { if(idx>=0){ warm('radar', idx); warm('ir', idx); } });
 }
 
 /* --------------- Live tab --------------- */
-const State = { liveTimer:null, liveSeries:[], lastSeenTs:0 };
+const State = { liveTimer:null, liveSeries:[], lastSeenTs:0, baseInterval: AUTO_REFRESH_MS_DEFAULT };
 async function pollLive(){
   try{
     const res = await API.latest();
     const d = res.data && res.data[0];
     if(!d) throw new Error('No data');
     const ts = d.epoch_ms || Date.parse(d.timestamp);
-    document.getElementById('live-temp').textContent = `${(d.temp ?? NaN).toFixed(2)} °C`;
-    document.getElementById('live-hum').textContent  = `${(d.hum ?? NaN).toFixed(2)} %`;
+    const t = +d.temp, h = +d.hum;
+    document.getElementById('live-temp').textContent = `${Number.isFinite(t)?t.toFixed(2):'—'} °C`;
+    document.getElementById('live-hum').textContent  = `${Number.isFinite(h)?h.toFixed(2):'—'} %`;
     document.getElementById('live-time').textContent = fmtTime(ts);
 
-    const fresh = (Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis()) <= LIVE_STALE_MS;
-    setStatus(fresh);
+    const age = Date.now() - dt.fromMillis(ts, {zone:TIMEZONE}).toMillis();
+    setStatusByAge(age);
 
-    if(ts > State.lastSeenTs){
-      State.lastSeenTs = ts;
-      const cutoff = Date.now() - 60*60*1000;
-      State.liveSeries.push({ x:ts, t:d.temp, h:d.hum });
-      State.liveSeries = State.liveSeries.filter(p=>p.x >= cutoff);
-      const xy = State.liveSeries;
-      upsertLineChart('chartLive',
-        xy.map(p=>p.x),
-        [
-          { label:'Temp (°C)', data: xy.map(p=>({x:p.x,y:p.t})), pointRadius:0, borderWidth:2, tension:.3 },
-          { label:'Humidity (%)', data: xy.map(p=>({x:p.x,y:p.h})), pointRadius:0, borderWidth:2, tension:.3 }
-        ]
-      );
-    }
-  }catch(e){ setStatus(false); }
+    if(ts > State.lastSeenTs){ State._boostCycles = 3; }
+    State.lastSeenTs = Math.max(State.lastSeenTs, ts);
+
+    const cutoff = Date.now() - 60*60*1000;
+    State.liveSeries.push({ x:ts, t, h });
+    State.liveSeries = State.liveSeries.filter(p=>p.x >= cutoff);
+
+    const xy = State.liveSeries;
+    upsertLineChart('chartLive',
+      xy.map(p=>p.x),
+      [
+        { label:'Temp (°C)', data: xy.map(p=>({x:p.x,y:p.t})), pointRadius:0, borderWidth:2, tension:.3 },
+        { label:'Humidity (%)', data: xy.map(p=>({x:p.x,y:p.h})), pointRadius:0, borderWidth:2, tension:.3 }
+      ]
+    );
+    document.getElementById('liveNote').textContent = `Samples: ${xy.length}`;
+  }catch{ setStatusByAge(Infinity); }
 }
 function startLiveTimer(ms){
   if(State.liveTimer) clearInterval(State.liveTimer);
-  if(ms>0) State.liveTimer = setInterval(()=>{ if(!document.hidden) pollLive(); }, ms);
+  if(ms>0){
+    State.liveTimer = setInterval(async ()=>{
+      await pollLive();
+      const base = Number(document.getElementById('refreshRate').value) * 1000 || 0;
+      if(base===0) return;
+      let interval = base;
+      if(State._boostCycles>0){ interval = Math.max(5000, base/2); State._boostCycles--; }
+      if(document.getElementById('statusText').textContent==='Disconnected'){ interval = Math.min(120000, base*2); }
+      if(interval !== State.baseInterval){ State.baseInterval = interval; startLiveTimer(interval); }
+    }, ms);
+  }
 }
 document.addEventListener('visibilitychange', ()=>{
   if(!document.hidden && document.querySelector('nav button.active')?.dataset.tab==='live') pollLive();
@@ -545,14 +716,16 @@ async function applyHistory(){
     const d0 = dt.fromISO(day, {zone:TIMEZONE}).startOf('day').toMillis();
     const d1 = dt.fromISO(day, {zone:TIMEZONE}).endOf('day').toMillis();
     const {data=[]} = await API.window(d0,d1);
-    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
-    labels = rows.map(r=>r.ms);
-    seriesT = rows.map(r=>({x:r.ms,y:r.temp}));
-    seriesH = rows.map(r=>({x:r.ms,y:r.hum}));
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
+    const fT = hampelFlags(rows.map(r=>r.temp)), fH = hampelFlags(rows.map(r=>r.hum));
+    const rowsClean = rows.filter((r,i)=> !(fT[i]||fH[i]));
+    labels = rowsClean.map(r=>r.ms);
+    seriesT = rowsClean.map(r=>({x:r.ms,y:r.temp}));
+    seriesH = rowsClean.map(r=>({x:r.ms,y:r.hum}));
     summaryEl.appendChild(statItem('Samples', rows.length));
-    summaryEl.appendChild(statItem('Temp (min / avg / max)', fmtTrip(rows.map(r=>r.temp))));
-    summaryEl.appendChild(statItem('Humidity (min / avg / max)', fmtTrip(rows.map(r=>r.hum))));
-    // If only a handful of points, Chart.js still shows them (no autoskip on time scale).
+    summaryEl.appendChild(statItem('Masked outliers', (rows.length-rowsClean.length)));
+    summaryEl.appendChild(statItem('Temp (min / avg / max)', fmtTrip(rowsClean.map(r=>r.temp))));
+    summaryEl.appendChild(statItem('Humidity (min / avg / max)', fmtTrip(rowsClean.map(r=>r.hum))));
     upsertLineChart('chartHistory', labels, [
       { label:'Temp (°C)', data:seriesT, pointRadius:0, borderWidth:2, tension:.25 },
       { label:'Humidity (%)', data:seriesH, pointRadius:0, borderWidth:2, tension:.25 }
@@ -562,7 +735,7 @@ async function applyHistory(){
     const d0 = dt.fromFormat(monthIso,'yyyy-LL',{zone:TIMEZONE}).startOf('month').toMillis();
     const d1 = dt.fromFormat(monthIso,'yyyy-LL',{zone:TIMEZONE}).endOf('month').toMillis();
     const {data=[]} = await API.window(d0,d1);
-    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
     const byDayMap = by(rows, r=> fmtDay(r.ms));
     const days = Object.keys(byDayMap).sort();
     labels = days;
@@ -578,7 +751,7 @@ async function applyHistory(){
   } else {
     const year = Number(document.getElementById('yearPicker').value || dt.now().setZone(TIMEZONE).year);
     const {data=[]} = await API.year(year);
-    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+    const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
     const byMonth = by(rows, r=> dt.fromMillis(r.ms, {zone:TIMEZONE}).toFormat('yyyy-LL'));
     const months = Object.keys(byMonth).sort();
     labels = months;
@@ -593,10 +766,10 @@ async function applyHistory(){
     ], false);
   }
 
-  // Monthly & Yearly overview from the same windowed slices (current year)
+  // Monthly & Yearly overview (current year)
   const now = dt.now().setZone(TIMEZONE);
   const {data:yearData=[]} = await API.year(now.year);
-  const rowsY = yearData.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  const rowsY = yearData.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
   const byM = by(rowsY, r=> dt.fromMillis(r.ms,{zone:TIMEZONE}).toFormat('yyyy-LL'));
   const mLabels = Object.keys(byM).sort();
   const mTemp   = mLabels.map(k=> avg(byM[k].map(x=>x.temp)));
@@ -621,7 +794,7 @@ async function loadDay(dateIso){
   const d0 = dt.fromISO(dateIso, {zone:TIMEZONE}).startOf('day').toMillis();
   const d1 = dt.fromISO(dateIso, {zone:TIMEZONE}).endOf('day').toMillis();
   const {data=[]} = await API.window(d0,d1);
-  const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  const rows = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
   upsertLineChart('chartDay',
     rows.map(r=>r.ms),
     [
@@ -638,9 +811,8 @@ async function loadDay(dateIso){
 
 /* --------------- Extremes --------------- */
 async function loadExtremes(){
-  // last 90 days window to keep payload reasonable
   const {data=[]} = await API.since(Date.now()-90*24*3600e3);
-  const all = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:d.temp, hum:d.hum }));
+  const all = data.map(d=>({ ms:(d.epoch_ms||Date.parse(d.timestamp)), temp:+d.temp, hum:+d.hum }));
   const byDayMap = by(all, r=> fmtDay(r.ms));
   const dayAgg = Object.entries(byDayMap).map(([k,arr])=>({
     day:k,
@@ -651,33 +823,28 @@ async function loadExtremes(){
   }));
   if(!dayAgg.length){ document.getElementById('extTemp').innerHTML='No data'; document.getElementById('extHum').innerHTML='No data'; return; }
 
-  const hottest = dayAgg.reduce((a,b)=> b.tMax > (a?tMax(a): -Infinity) ? b : a);
-  function tMax(x){ return x.tMax; }
-  const coldest = dayAgg.reduce((a,b)=> b.tMin < (a?tMin(a):  Infinity) ? b : a);
-  function tMin(x){ return x.tMin; }
-  const mostHumidDay = dayAgg.reduce((a,b)=> b.hAvg > (a?hAvg(a): -Infinity) ? b : a);
-  function hAvg(x){ return x.hAvg; }
-
+  const hottest = dayAgg.reduce((a,b)=> (a && a.tMax > b.tMax) ? a : b);
+  const coldest = dayAgg.reduce((a,b)=> (a && a.tMin < b.tMin) ? a : b);
+  const warmestAvg = dayAgg.reduce((a,b)=> (a && a.tAvg > b.tAvg) ? a : b);
   const extTemp=document.getElementById('extTemp'); extTemp.innerHTML='';
   extTemp.appendChild(statItem('Hottest day (max)', `${hottest.day} · ${hottest.tMax.toFixed(2)} °C`));
   extTemp.appendChild(statItem('Coldest day (min)', `${coldest.day} · ${coldest.tMin.toFixed(2)} °C`));
-  extTemp.appendChild(statItem('Warmest average', `${(dayAgg.reduce((a,b)=> b.tAvg>(a?a.tAvg:-Infinity)?b:a)).day} · ${Math.max.apply(null, dayAgg.map(d=>d.tAvg)).toFixed(2)} °C`));
+  extTemp.appendChild(statItem('Warmest average', `${warmestAvg.day} · ${warmestAvg.tAvg.toFixed(2)} °C`));
 
-  // Weekly humidity
   const byWeek = by(all, r=> {
     const d = dt.fromMillis(r.ms, {zone:TIMEZONE});
     return `${d.weekYear}-W${String(d.weekNumber).padStart(2,'0')}`;
   });
   const weekAgg = Object.entries(byWeek).map(([w,arr])=> ({ week:w, hAvg:avg(arr.map(x=>x.hum)) }));
-  const mostHumidWeek = weekAgg.reduce((a,b)=> b.hAvg > (a?a.hAvg:-Infinity) ? b : a);
+  const mostHumidDay = dayAgg.reduce((a,b)=> (a && a.hAvg > b.hAvg) ? a : b);
+  const mostHumidWeek = weekAgg.reduce((a,b)=> (a && a.hAvg > b.hAvg) ? a : b);
   const extHum=document.getElementById('extHum'); extHum.innerHTML='';
   extHum.appendChild(statItem('Most‑humid day (avg)', `${mostHumidDay.day} · ${mostHumidDay.hAvg.toFixed(2)} %`));
   extHum.appendChild(statItem('Most‑humid week (avg)', `${mostHumidWeek.week} · ${mostHumidWeek.hAvg.toFixed(2)} %`));
 }
 
-/* --------------- Weather icons (Open‑Meteo weathercode) --------------- */
+/* --------------- Weather icons --------------- */
 function wxIcon(code){
-  // Minimal set of icons (SVG) based on WMO weather codes
   const sun = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke="currentColor" stroke-width="2"/></svg>';
   const cloud = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 18h9a4 4 0 0 0 0-8 6 6 0 0 0-11.31 2" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
   const rain = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 17h9a4 4 0 0 0 0-8 6 6 0 0 0-11.31 2" stroke="currentColor" stroke-width="2"/><path d="M8 20l-1 2M12 20l-1 2M16 20l-1 2" stroke="currentColor" stroke-width="2"/></svg>';
@@ -686,11 +853,9 @@ function wxIcon(code){
   const fog  = '<svg class="ficon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12h18M4 16h16M6 20h12M5 8h14" stroke="currentColor" stroke-width="2"/></svg>';
 
   const sunny = [0], mainlyClear=[1], partlyCloudy=[2], overcast=[3];
-  const foggy=[45,48];
-  const drizzle=[51,53,55,56,57];
+  const foggy=[45,48]; const drizzle=[51,53,55,56,57];
   const rainCodes=[61,63,65,66,67,80,81,82];
-  const snowCodes=[71,73,75,77,85,86];
-  const thunder=[95,96,99];
+  const snowCodes=[71,73,75,77,85,86]; const thunder=[95,96,99];
 
   if (sunny.includes(code)) return sun;
   if (mainlyClear.includes(code)) return sun;
@@ -702,6 +867,14 @@ function wxIcon(code){
   if (snowCodes.includes(code)) return snow;
   if (thunder.includes(code)) return storm;
   return cloud;
+}
+
+/* --------------- CSV helpers --------------- */
+function toCsvRows(rows){ return rows.map(r => [new Date(r.x||r.ms).toISOString(), r.t ?? r.temp ?? '', r.h ?? r.hum ?? ''].join(',')); }
+function downloadCsv(filename, header, rows){
+  const blob = new Blob([header + '\n' + rows.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 
 /* --------------- Tabs & Init --------------- */
@@ -737,6 +910,39 @@ function switchTab(tab){
   };
   document.getElementById('btnApply').onclick = applyHistory;
   document.getElementById('btnCalLoad').onclick = ()=>{ const d=document.getElementById('calPicker').value; if(d) loadDay(d); };
+
+  // CSV buttons
+  document.getElementById('btnCsv24h').onclick = async ()=>{
+    const last24 = await API.since(Date.now()-24*3600e3);
+    const pts = (last24.data||[]).map(d=>({x:(d.epoch_ms||Date.parse(d.timestamp)), t:+d.temp, h:+d.hum}));
+    downloadCsv('markku_last24h.csv', 'timestamp,temp_c,hum_pct', toCsvRows(pts));
+  };
+  document.getElementById('btnCsvHistory').onclick = ()=>{
+    const ch = Charts['chartHistory']; if(!ch) return;
+    const xs = ch.data.labels;
+    const tds = ch.data.datasets[0].data; const hds = ch.data.datasets[1].data;
+    const rows = xs.map((x,i)=> ({x: new Date(x).getTime() || x, t: (typeof tds[i]==='number'?tds[i]:tds[i]?.y), h:(typeof hds[i]==='number'?hds[i]:hds[i]?.y)}));
+    downloadCsv('markku_history.csv','timestamp,temp_c,hum_pct', toCsvRows(rows));
+  };
+
+  // Subscribe form
+  document.getElementById('alertSub').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('subEmail').value.trim();
+    const msg = document.getElementById('subMsg');
+    if(!email){ msg.textContent = 'Enter an email.'; return; }
+    if(!SUBSCRIBE_URL || SUBSCRIBE_URL.startsWith('REPLACE_')){ msg.textContent = 'Subscription endpoint not configured.'; return; }
+    try{
+      const body = new URLSearchParams({ email });
+      await fetch(SUBSCRIBE_URL, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body: body.toString() });
+      msg.textContent = 'Check your inbox to confirm, then manage alert types via the link in emails.';
+      document.getElementById('subEmail').value='';
+    }catch{ msg.textContent = 'Unable to subscribe right now.'; }
+  });
+  document.getElementById('manageInfo').addEventListener('click', (e)=>{
+    e.preventDefault();
+    alert('To manage or unsubscribe, use the “Manage alerts” link included in any alert email.');
+  });
 
   // Defaults for history controls
   document.getElementById('granularity').dispatchEvent(new Event('change'));
