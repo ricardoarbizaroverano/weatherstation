@@ -40,11 +40,14 @@ header{position:sticky; top:0; z-index:50; backdrop-filter:saturate(180%) blur(1
 h1{margin:0; font-size:clamp(18px,1.6vw + 12px,26px)}
 .subtitle{color:var(--muted)}
 nav{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap}
-nav button{
+nav button, .pill button{
   appearance:none; border:1px solid #ffffff1f; background:var(--card); color:var(--ink);
   padding:8px 12px; border-radius:12px; cursor:pointer; box-shadow:var(--shadow);
-  font-weight:600;
+  font-weight:600; transition:transform .06s ease, border-color .15s ease, background .15s ease;
 }
+nav button:hover, .pill button:hover{ border-color:#ffffff33; }
+nav button:active, .pill button:active{ transform:translateY(1px) scale(.995); }
+nav button:focus-visible, .pill button:focus-visible{ outline:2px solid #0a84ff60; }
 nav button.active{border-color:#0a84ff80; outline:2px solid #0a84ff30}
 main{padding:18px 0}
 .grid{display:grid; gap:16px}
@@ -82,8 +85,10 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
 /* Added */
 .subscribe .footnote{min-width:200px}
 .pill input[type="range"]{accent-color:var(--accent)}
-.pill button{padding:6px 10px; border-radius:8px; border:1px solid #ffffff24; background:var(--card); color:var(--ink); cursor:pointer}
 .leaflet-control-layers{font-size:12px}
+.badge{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; border:1px solid #ffffff24}
+.badge.spin::after{content:""; width:10px; height:10px; border-radius:50%; border:2px solid #ffffff40; border-top-color:#fff; display:inline-block; animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
 </style>
 </head>
 <body>
@@ -100,7 +105,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         </div>
         <div>
           <h1>Markku Weather Station <span class="subtitle">(rock rock)</span></h1>
-          <div class="subtitle">Markun yksityinen sääasema</div>
+          <div class="subtitle">Markun yksityinen sääasema 🤟</div>
         </div>
         <div style="margin-left:auto" class="pill" id="liveStatus" aria-live="polite">
           <span class="status-dot" id="statusDot"></span><span id="statusText">Disconnected</span>
@@ -148,7 +153,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         </div>
 
         <div class="card">
-          <h2>Location & Forecast (API)</h2>
+          <h2>Location & Forecast (API) <span id="wxStatus" class="badge spin" aria-live="polite">Loading radar…</span></h2>
           <div id="map"></div>
           <div class="row" style="margin-top:8px">
             <span class="pill">Vuohijärvi (local): <strong id="localClock">—</strong></span>
@@ -157,14 +162,14 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
             <span class="pill">Sunset: <strong id="sunset">—</strong></span>
           </div>
           <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap">
-            <label class="pill"><input type="checkbox" id="toggleRadar" checked> Radar</label>
-            <label class="pill"><input type="checkbox" id="toggleIR"> IR</label>
+            <label class="pill"><input type="checkbox" id="toggleRadar" disabled> Radar</label>
+            <label class="pill"><input type="checkbox" id="toggleIR" disabled> IR</label>
             <button id="btnWxRefresh">Refresh</button>
 
             <span class="pill" style="gap:10px">
-              <button id="btnPlay" aria-label="Play/Pause">▶︎</button>
-              <input type="range" id="frameScrub" min="0" max="0" value="0" style="width:180px" aria-label="Frame scrubber">
-              <select id="animSpeed" title="Speed" aria-label="Animation speed">
+              <button id="btnPlay" aria-label="Play/Pause" disabled>▶︎</button>
+              <input type="range" id="frameScrub" min="0" max="0" value="0" style="width:180px" aria-label="Frame scrubber" disabled>
+              <select id="animSpeed" title="Speed" aria-label="Animation speed" disabled>
                 <option value="0.5">0.5×</option>
                 <option value="1" selected>1×</option>
                 <option value="2">2×</option>
@@ -174,7 +179,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
 
             <span class="pill" style="gap:10px">
               Blend
-              <input type="range" id="blend" min="0" max="100" value="50" style="width:120px" title="Radar↔IR opacity">
+              <input type="range" id="blend" min="0" max="100" value="50" style="width:120px" title="Radar↔IR opacity" disabled>
             </span>
 
             <span class="pill">
@@ -186,7 +191,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
               </select>
             </span>
 
-            <label class="pill"><input type="checkbox" id="toggleWind" disabled> Wind (coming)</label>
+            <label class="pill"><input type="checkbox" id="toggleWind"> Wind</label>
           </div>
           <div class="frow" id="forecast" style="margin-top:10px"></div>
           <div class="footnote" id="forecastNote">Open‑Meteo daily forecast. Max/Min in °C. Icons from weathercode.</div>
@@ -321,7 +326,7 @@ footer{padding:24px 0 60px; text-align:center; color:var(--muted)}
         <span id="subMsg" class="footnote"></span>
       </form>
     </div>
-    Designed by Ricardo Arbiza © <span id="yearNow"></span>
+    Designed by ricardoarbiza.com © <span id="yearNow"></span>
   </footer>
 
 <script>
@@ -334,7 +339,7 @@ const MAX_ROWS_PER_CALL = 10000;
 const LIVE_STALE_MS = 15 * 60 * 1000;
 
 // Alerts subscribe endpoint (Apps Script “base_url”)
-const SUBSCRIBE_URL = 'https://script.google.com/macros/s/AKfycbxedVC0Voc425k8HePuceeEVz9gj-JOO8lyybccNGIjb5Cmh_8LOIJclKwv8iHR5OBg/exec';
+const SUBSCRIBE_URL = 'https://script.google.com/macros/s/AKfycbwys4qvgUAMdCvi3jQsSo0xedEbYqkjFtBYKpzPS0yi6hKmGXDRdf3bID_VyLsIhRK0nw/exec';
 
 // Animation speeds (ms per frame)
 const RV_PLAY_SPEEDS = { '0.5': 800, '1': 400, '2': 200, '4': 100 };
@@ -482,10 +487,10 @@ function hydrate24h(last24){
   document.getElementById('ov-24h-note').textContent = `${pts.length} samples in last 24h${dropped?`, ${dropped} outliers masked`:''}`;
 }
 
-/* --------------- External APIs: Leaflet + RainViewer + Forecast --------------- */
+/* --------------- External APIs: Leaflet + RainViewer + Wind + Forecast --------------- */
 let map, baseLayers, rainviewerMeta=null;
 let radarFrames=[], irFrames=[], frameIdx=0, playTimer=null;
-let radarLayer, irLayer;
+let radarLayer, irLayer, windLayer;
 
 async function loadExternal(){
   // Clock
@@ -508,16 +513,23 @@ async function loadExternal(){
     map = L.map('map', { zoomControl:true, attributionControl:true, layers:[baseLayers.osm] })
             .setView([COORD.lat, COORD.lon], 11);
     L.marker([COORD.lat, COORD.lon]).addTo(map);
-    L.control.layers(baseLayers, {}, { collapsed:true }).addTo(map);
 
-    // Basemap selector
+    // Overlays (start empty/hidden)
+    radarLayer = L.tileLayer('', { opacity: 0.7, zIndex: 400, crossOrigin:'anonymous' });
+    irLayer    = L.tileLayer('', { opacity: 0.6, zIndex: 300, crossOrigin:'anonymous' });
+    windLayer  = L.layerGroup();
+
+    // Layer control
+    L.control.layers(
+      baseLayers,
+      { 'Radar': radarLayer, 'IR': irLayer, 'Wind': windLayer },
+      { collapsed:true }
+    ).addTo(map);
+
+    // Basemap selector (also mirrors layer control)
     document.getElementById('basemap').addEventListener('change', (e)=>{
       const v=e.target.value; Object.values(baseLayers).forEach(l=> map.removeLayer(l)); baseLayers[v].addTo(map);
     });
-
-    // Persistent overlay layers
-    radarLayer = L.tileLayer('', { opacity: 0.7, zIndex: 400, crossOrigin:'anonymous' });
-    irLayer    = L.tileLayer('', { opacity: 0.6, zIndex: 300, crossOrigin:'anonymous' });
 
     // UI events
     document.getElementById('toggleRadar').addEventListener('change', ()=> toggleOverlay('radar'));
@@ -527,9 +539,13 @@ async function loadExternal(){
     document.getElementById('frameScrub').addEventListener('input', (e)=> setFrame(+e.target.value));
     document.getElementById('animSpeed').addEventListener('change', ()=> { if(playTimer) restartPlayTimer(); });
     document.getElementById('blend').addEventListener('input', updateBlend);
+    document.getElementById('toggleWind').addEventListener('change', async (e)=>{
+      if(e.target.checked){ await drawWindNow(); if(!map.hasLayer(windLayer)) windLayer.addTo(map); }
+      else { if(map.hasLayer(windLayer)) map.removeLayer(windLayer); }
+    });
   }
 
-  // Open‑Meteo forecast
+  // Open‑Meteo forecast (daily + sunrise/sunset)
   try{
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${COORD.lat}&longitude=${COORD.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,sunrise,sunset&timezone=${encodeURIComponent(TIMEZONE)}`;
     const res = await fetch(url, {cache:'no-store'}); const js = await res.json();
@@ -553,30 +569,51 @@ async function loadExternal(){
 
   // RainViewer meta & frames
   await fetchRainviewer(false);
+
+  // Preload wind (does nothing visible until toggled)
+  await drawWindNow();
 }
 
 async function fetchRainviewer(force){
+  const status = document.getElementById('wxStatus');
   try{
     if(!force && rainviewerMeta && (Date.now()-rainviewerMeta._fetchedAt)<(5*60*1000)) { applyRainviewerMeta(); return; }
+    status.classList.add('spin'); status.textContent = 'Loading radar…';
     const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json', {cache:'no-store'});
     const meta = await resp.json();
     meta._fetchedAt = Date.now(); rainviewerMeta = meta;
     applyRainviewerMeta();
-  }catch(e){ console.warn('RainViewer meta failed', e); }
+    status.classList.remove('spin'); status.textContent = 'Radar ready';
+  }catch(e){
+    console.warn('RainViewer meta failed', e);
+    status.classList.remove('spin'); status.textContent = 'Radar unavailable';
+    // Keep controls disabled if failure
+  }
 }
 
 function applyRainviewerMeta(){
   radarFrames = (rainviewerMeta?.radar?.nowcast || []).map(f=>f.time);
   irFrames    = (rainviewerMeta?.satellite?.infrared || []).map(f=>f.time);
 
+  const hasAny = radarFrames.length || irFrames.length;
+  const controls = ['toggleRadar','toggleIR','btnPlay','frameScrub','animSpeed','blend'].map(id=>document.getElementById(id));
+  controls.forEach(el=> el.disabled = !hasAny);
+
+  if(!hasAny){
+    document.getElementById('wxStatus').textContent = 'No frames';
+    return;
+  }
+
+  // Latest by default
   const maxFrames = Math.max(radarFrames.length, irFrames.length, 1);
   const scrub = document.getElementById('frameScrub');
   scrub.max = Math.max(0, maxFrames-1);
-  frameIdx = Math.max(0, maxFrames-1); // latest by default
-
+  frameIdx = Math.max(0, maxFrames-1);
   setFrame(frameIdx);
-  toggleOverlay('radar');
-  toggleOverlay('ir');
+
+  // Auto-enable Radar to make the change obvious
+  const radarToggle = document.getElementById('toggleRadar');
+  if(!radarToggle.checked){ radarToggle.checked = true; toggleOverlay('radar'); }
 }
 
 function frameUrl(kind, idx){
@@ -588,6 +625,9 @@ function frameUrl(kind, idx){
 }
 
 function toggleOverlay(kind){
+  const ready = (kind==='radar' ? radarFrames.length : irFrames.length) > 0;
+  if(!ready){ flashStatus('wxStatus', (kind==='radar'?'Radar':'IR')+' not loaded'); return; }
+
   const show = document.getElementById(kind==='radar' ? 'toggleRadar':'toggleIR').checked;
   const url  = frameUrl(kind, frameIdx);
   if(kind==='radar'){
@@ -615,7 +655,9 @@ function updateBlend(){
 
 function setFrame(i){
   frameIdx = i;
-  document.getElementById('frameScrub').value = String(i);
+  const scrub = document.getElementById('frameScrub');
+  if(Number(scrub.max) === 0 && i === 0) { /* first init ok */ } else { scrub.value = String(i); }
+
   if(map?.hasLayer(radarLayer)){ const u = frameUrl('radar', i); if(u) radarLayer.setUrl(u); }
   if(map?.hasLayer(irLayer)){ const u = frameUrl('ir', i); if(u) irLayer.setUrl(u); }
   prefetchNeighbors(i);
@@ -634,6 +676,7 @@ function restartPlayTimer(){
 
 function togglePlay(){
   const btn = document.getElementById('btnPlay');
+  if(btn.disabled) return;
   if(playTimer){ clearInterval(playTimer); playTimer=null; btn.textContent='▶︎'; return; }
   restartPlayTimer(); btn.textContent='⏸';
 }
@@ -647,6 +690,75 @@ function prefetchNeighbors(i){
     const img = new Image(); img.crossOrigin='anonymous'; img.src = sample;
   };
   samples.forEach(idx => { if(idx>=0){ warm('radar', idx); warm('ir', idx); } });
+}
+
+/* ---------- Wind overlay (Open‑Meteo hourly) ---------- */
+async function drawWindNow(){
+  try{
+    const q = new URLSearchParams({
+      latitude: COORD.lat, longitude: COORD.lon,
+      hourly: 'windspeed_10m,winddirection_10m',
+      current_weather: 'true', timezone: TIMEZONE
+    });
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q.toString()}`, { cache:'no-store' });
+    const js = await res.json();
+
+    // Prefer current_weather if present; else nearest hour from hourly arrays
+    let spd = js?.current_weather?.windspeed; // km/h per Open‑Meteo current_weather
+    let dir = js?.current_weather?.winddirection; // degrees
+    if(!Number.isFinite(spd) || !Number.isFinite(dir)){
+      const times = js?.hourly?.time || [];
+      const idx = times.findIndex(t => Math.abs(Date.now() - Date.parse(t)) < 60*60*1000);
+      if(idx >= 0){
+        spd = js.hourly.windspeed_10m?.[idx];      // m/s by default for hourly
+        dir = js.hourly.winddirection_10m?.[idx];
+        // Normalize units: show m/s consistently
+      }
+    }
+
+    // Clear previous
+    windLayer.clearLayers();
+
+    if(Number.isFinite(spd) && Number.isFinite(dir)){
+      const mps = js?.current_weather?.windspeed ? (spd/3.6) : spd; // convert km/h→m/s if needed
+      const ico = windArrowIcon(dir, mps);
+      L.marker([COORD.lat, COORD.lon], { icon: ico })
+        .bindTooltip(`${mps.toFixed(1)} m/s · ${Math.round(dir)}°`, { direction:'top', offset:[0,-4] })
+        .addTo(windLayer);
+    } else {
+      // Fallback text marker
+      L.marker([COORD.lat, COORD.lon]).bindTooltip('Wind data unavailable',{direction:'top'}).addTo(windLayer);
+    }
+  }catch(e){
+    console.warn('Wind load failed', e);
+  }
+}
+
+function windArrowIcon(directionDeg, speedMps){
+  const size = 36;
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 48 48" style="transform:rotate(${directionDeg}deg)">
+    <defs>
+      <filter id="s" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity=".45"/>
+      </filter>
+    </defs>
+    <circle cx="24" cy="24" r="22" fill="#0b1220" fill-opacity=".7" stroke="#8ab4f8" stroke-opacity=".35"/>
+    <g filter="url(#s)">
+      <path d="M24 9 L28 21 L24 19 L20 21 Z" fill="#8ab4f8"/>
+      <line x1="24" y1="19" x2="24" y2="36" stroke="#8ab4f8" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <text x="24" y="44" font-size="8" text-anchor="middle" fill="#cbd5e1" font-family="system-ui"> ${speedMps.toFixed(1)} m/s </text>
+  </svg>`;
+  return L.divIcon({ html: svg, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2] });
+}
+
+/* ---------- Small UI helper ---------- */
+function flashStatus(id, text){
+  const el = document.getElementById(id);
+  const prev = el.textContent;
+  el.textContent = text;
+  setTimeout(()=>{ el.textContent = prev; }, 1500);
 }
 
 /* --------------- Live tab --------------- */
@@ -925,20 +1037,45 @@ function switchTab(tab){
     downloadCsv('markku_history.csv','timestamp,temp_c,hum_pct', toCsvRows(rows));
   };
 
-  // Subscribe form
+  // Subscribe form (CORS-safe fire-and-forget)
   document.getElementById('alertSub').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const email = document.getElementById('subEmail').value.trim();
-    const msg = document.getElementById('subMsg');
-    if(!email){ msg.textContent = 'Enter an email.'; return; }
-    if(!SUBSCRIBE_URL || SUBSCRIBE_URL.startsWith('REPLACE_')){ msg.textContent = 'Subscription endpoint not configured.'; return; }
+    const hp    = (e.target.querySelector('[name="hp"]')?.value || '').trim(); // honeypot
+    const msg   = document.getElementById('subMsg');
+    const btn   = e.submitter || e.target.querySelector('button[type="submit"]');
+
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.textContent = 'Enter a valid email.'; return; }
+    if(!SUBSCRIBE_URL || SUBSCRIBE_URL.startsWith('REPLACE_')){ msg.textContent='Subscription endpoint not configured.'; return; }
+
+    const prev = btn.textContent; btn.disabled = true; btn.textContent = 'Sending…'; msg.textContent = 'Sending…';
+
+    const ctl = new AbortController();
+    const tId = setTimeout(()=>ctl.abort('timeout'), 6000);
+
     try{
-      const body = new URLSearchParams({ email });
-      await fetch(SUBSCRIBE_URL, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body: body.toString() });
-      msg.textContent = 'Check your inbox to confirm, then manage alert types via the link in emails.';
-      document.getElementById('subEmail').value='';
-    }catch{ msg.textContent = 'Unable to subscribe right now.'; }
+      const body = new URLSearchParams({ email, hp });
+      await fetch(SUBSCRIBE_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+        keepalive: true,
+        signal: ctl.signal
+      });
+      msg.textContent = 'Check your inbox to confirm, then use that link to manage alerts.';
+      document.getElementById('subEmail').value = '';
+      setTimeout(()=>{ btn.disabled = false; btn.textContent = prev; }, 1200);
+      return;
+    } catch (err){
+      console.error(err);
+      msg.textContent = (err && err.name === 'AbortError') ? 'Request timed out. Try again.' : 'Network error. Please try again.';
+    } finally {
+      clearTimeout(tId);
+      if(btn.disabled){ btn.disabled = false; btn.textContent = prev; }
+    }
   });
+
   document.getElementById('manageInfo').addEventListener('click', (e)=>{
     e.preventDefault();
     alert('To manage or unsubscribe, use the “Manage alerts” link included in any alert email.');
